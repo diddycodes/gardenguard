@@ -1,7 +1,7 @@
 import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "@/lib/AuthContext";
 import { Button } from "@/components/ui/button";
-import { Shield, Menu, X, User as UserIcon, LogOut, Plus, Home, ScrollText, ShieldCheck, MessageCircle, Code2 } from "lucide-react";
+import { Shield, Menu, X, User as UserIcon, LogOut, Plus, Home, ScrollText, ShieldCheck, MessageCircle } from "lucide-react";
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { base44 } from "@/api/base44Client";
@@ -28,9 +28,7 @@ export default function Navbar() {
     { to: "/", label: "Home", icon: Home },
     { to: "/reports", label: "Watchlist", icon: ScrollText },
     { to: "/chat", label: "Chat", icon: MessageCircle },
-    { to: "/open-source", label: "Open Source", icon: Code2 },
   ];
-
   if (isAuthenticated) {
     navLinks.push({ to: "/submit", label: "Report", icon: Plus });
   }

@@ -16,7 +16,6 @@ import SubmitReport from './pages/SubmitReport';
 import ReportDetail from './pages/ReportDetail';
 import Profile from './pages/Profile';
 import AdminPanel from './pages/AdminPanel';
-import OpenSource from './pages/OpenSource';
 import Login from '@/pages/Login';
 import Register from '@/pages/Register';
 import ForgotPassword from '@/pages/ForgotPassword';
@@ -56,7 +55,6 @@ const AuthenticatedApp = () => {
         <Route path="/" element={<Home />} />
         <Route path="/reports" element={<Reports />} />
         <Route path="/chat" element={<Chat />} />
-        <Route path="/open-source" element={<OpenSource />} />
         <Route path="/reports/:id" element={<ReportDetail />} />
         <Route element={<ProtectedRoute unauthenticatedElement={<Navigate to="/login" replace />} />}>
           <Route path="/submit" element={<SubmitReport />} />

@@ -23,10 +23,10 @@ export default function CommentItem({ comment }) {
           <p className="text-sm text-foreground/90 break-words whitespace-pre-wrap">{comment.content}</p>
         </div>
         <span className="text-[10px] text-muted-foreground mt-0.5 px-1">
-          {comment.created_date
-            ? new Date(comment.created_date).toLocaleDateString("en-US", { month: "short", day: "numeric" }) +
+          {comment.created_at
+            ? new Date(comment.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" }) +
               " at " +
-              new Date(comment.created_date).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+              new Date(comment.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
             : ""}
         </span>
       </div>

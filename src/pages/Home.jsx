@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { AlertTriangle, ScrollText, Plus, ShieldCheck, Eye, Zap, ChevronRight } from "lucide-react";
 import TopScammers from "@/components/TopScammers";
 import { useEffect, useState } from "react";
-import { base44 } from "@/api/base44Client";
+import { supabase } from "@/lib/supabaseClient";
 
 export default function Home() {
   const [stats, setStats] = useState({ total: 0, approved: 0, pending: 0 });
@@ -13,7 +13,12 @@ export default function Home() {
   useEffect(() => {
     (async () => {
       try {
-        const all = await base44.entities.ScammerReport.list("-created_date", 500);
+        const { data: all, error } = await supabase
+          .from("scammer_reports")
+          .select("*")
+          .order("created_at", { ascending: false })
+          .limit(500);
+        if (error) throw error;
         const approved = all.filter((r) => r.status === "approved");
         const pending = all.filter((r) => r.status === "pending").length;
         setStats({ total: all.length, approved: approved.length, pending });

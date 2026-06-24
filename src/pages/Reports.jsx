@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
-import { base44 } from "@/api/base44Client";
+import { supabase } from "@/lib/supabaseClient";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, Search, ScrollText, Filter } from "lucide-react";
@@ -34,41 +34,32 @@ export default function Reports() {
   const [severity, setSeverity] = useState("all");
   const searchRef = useRef(null);
 
+  const loadReports = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("scammer_reports")
+        .select("*")
+        .eq("status", "approved")
+        .order("created_at", { ascending: false })
+        .limit(500);
+      if (error) throw error;
+      setReports(data);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    (async () => {
-      try {
-        const data = await base44.entities.ScammerReport.filter({ status: "approved" }, "-created_date", 500);
-        setReports(data);
-      } catch (e) {
-        console.error(e);
-      } finally {
-        setLoading(false);
-      }
-    })();
+    loadReports();
 
-    const unsubscribe = base44.entities.ScammerReport.subscribe((event) => {
-      if (event.type === "delete") {
-        setReports((prev) => prev.filter((r) => r.id !== event.data.id));
-      } else if (event.type === "update") {
-        if (event.data.status === "approved") {
-          setReports((prev) => {
-            const idx = prev.findIndex((r) => r.id === event.data.id);
-            if (idx >= 0) {
-              const next = [...prev];
-              next[idx] = event.data;
-              return next;
-            }
-            return [event.data, ...prev];
-          });
-        } else {
-          setReports((prev) => prev.filter((r) => r.id !== event.data.id));
-        }
-      } else if (event.type === "create" && event.data.status === "approved") {
-        setReports((prev) => [event.data, ...prev]);
-      }
-    });
+    const channel = supabase
+      .channel("scammer-reports-list")
+      .on("postgres_changes", { event: "*", schema: "public", table: "scammer_reports" }, loadReports)
+      .subscribe();
 
-    return () => unsubscribe();
+    return () => supabase.removeChannel(channel);
   }, []);
 
   useEffect(() => {

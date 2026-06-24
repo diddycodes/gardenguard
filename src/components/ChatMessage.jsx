@@ -70,8 +70,8 @@ export default function ChatMessage({ message, isOwn, isAdmin, onDelete }) {
           </div>
         )}
         <span className="text-[10px] text-muted-foreground mt-0.5 px-1">
-          {message.created_date
-            ? new Date(message.created_date).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+          {message.created_at
+            ? new Date(message.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
             : ""}
         </span>
       </div>

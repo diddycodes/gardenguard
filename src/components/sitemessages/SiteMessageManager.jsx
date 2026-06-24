@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { base44 } from "@/api/base44Client";
+import { supabase } from "@/lib/supabaseClient";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -35,7 +35,12 @@ export default function SiteMessageManager({ adminName }) {
   const load = async () => {
     setLoading(true);
     try {
-      const data = await base44.entities.SiteMessage.list("-created_date", 50);
+      const { data, error } = await supabase
+        .from("site_messages")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(50);
+      if (error) throw error;
       setMessages(data);
     } catch (e) {
       console.error(e);
@@ -53,12 +58,13 @@ export default function SiteMessageManager({ adminName }) {
     if (!content.trim()) return;
     setSubmitting(true);
     try {
-      await base44.entities.SiteMessage.create({
+      const { error } = await supabase.from("site_messages").insert({
         content: content.trim(),
         animation_type: animType,
         active: true,
         created_by_name: adminName,
       });
+      if (error) throw error;
       toast({ title: "Message posted!" });
       setContent("");
       load();
@@ -72,7 +78,8 @@ export default function SiteMessageManager({ adminName }) {
   const handleDelete = async (id) => {
     setDeletingId(id);
     try {
-      await base44.entities.SiteMessage.delete(id);
+      const { error } = await supabase.from("site_messages").delete().eq("id", id);
+      if (error) throw error;
       toast({ title: "Message deleted" });
       load();
     } catch (e) {
@@ -84,7 +91,11 @@ export default function SiteMessageManager({ adminName }) {
 
   const toggleActive = async (msg) => {
     try {
-      await base44.entities.SiteMessage.update(msg.id, { active: !msg.active });
+      const { error } = await supabase
+        .from("site_messages")
+        .update({ active: !msg.active })
+        .eq("id", msg.id);
+      if (error) throw error;
       load();
     } catch (e) {
       toast({ title: "Failed", description: e.message, variant: "destructive" });

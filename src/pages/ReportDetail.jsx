@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import { base44 } from "@/api/base44Client";
+import { supabase } from "@/lib/supabaseClient";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -24,11 +24,20 @@ export default function ReportDetail() {
   useEffect(() => {
     (async () => {
       try {
-        const data = await base44.entities.ScammerReport.get(id);
+        const { data, error } = await supabase
+          .from("scammer_reports")
+          .select("*")
+          .eq("id", id)
+          .single();
+        if (error) throw error;
         setReport(data);
         if (data.approved_by_id) {
           try {
-            const approver = await base44.entities.User.get(data.approved_by_id);
+            const { data: approver } = await supabase
+              .from("profiles")
+              .select("display_name, full_name, email")
+              .eq("id", data.approved_by_id)
+              .single();
             const name = approver?.display_name || approver?.full_name || approver?.email?.split("@")[0];
             if (name) setApproverName(name);
           } catch {
@@ -155,8 +164,8 @@ export default function ReportDetail() {
                     <div className="min-w-0">
                       <p className="text-xs text-muted-foreground">Reported on</p>
                       <p className="font-medium">
-                        {report.created_date
-                          ? new Date(report.created_date).toLocaleDateString("en-US", {
+                        {report.created_at
+                          ? new Date(report.created_at).toLocaleDateString("en-US", {
                               year: "numeric",
                               month: "short",
                               day: "numeric",

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { base44 } from "@/api/base44Client";
+import { supabase } from "@/lib/supabaseClient";
 import { useAuth } from "@/lib/AuthContext";
 import { Navigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -15,12 +15,12 @@ import SiteMessageManager from "@/components/sitemessages/SiteMessageManager";
 import { Megaphone } from "lucide-react";
 
 const logAction = (action, adminName, report) =>
-  base44.entities.AdminActivityLog.create({
+  supabase.from("admin_activity_log").insert({
     action,
     admin_name: adminName,
     report_username: report?.scammer_username || "",
     report_id: report?.id || "",
-  }).catch(() => {});
+  }).then(() => {}).catch(() => {});
 
 export default function AdminPanel() {
   const { user } = useAuth();
@@ -34,7 +34,12 @@ export default function AdminPanel() {
   const loadReports = async () => {
     setLoading(true);
     try {
-      const data = await base44.entities.ScammerReport.list("-created_date", 500);
+      const { data, error } = await supabase
+        .from("scammer_reports")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(500);
+      if (error) throw error;
       setReports(data);
     } catch (e) {
       console.error(e);
@@ -57,11 +62,11 @@ export default function AdminPanel() {
     const report = reports.find((r) => r.id === id);
     setActionLoading(id);
     try {
-      await base44.entities.ScammerReport.update(id, {
-        status: "approved",
-        approved_by: adminName,
-        approved_by_id: user?.id || "",
-      });
+      const { error } = await supabase
+        .from("scammer_reports")
+        .update({ status: "approved", approved_by: adminName, approved_by_id: user?.id || null })
+        .eq("id", id);
+      if (error) throw error;
       await logAction("approved", adminName, report);
       toast({ title: "Report approved!" });
       loadReports();
@@ -76,7 +81,8 @@ export default function AdminPanel() {
     const report = reports.find((r) => r.id === id);
     setActionLoading(id);
     try {
-      await base44.entities.ScammerReport.delete(id);
+      const { error } = await supabase.from("scammer_reports").delete().eq("id", id);
+      if (error) throw error;
       await logAction("deleted", adminName, report);
       toast({ title: "Report deleted" });
       loadReports();
@@ -91,10 +97,11 @@ export default function AdminPanel() {
     const report = reports.find((r) => r.id === id);
     setActionLoading(id);
     try {
-      await base44.entities.ScammerReport.update(id, {
-        status: "rejected",
-        approved_by: adminName,
-      });
+      const { error } = await supabase
+        .from("scammer_reports")
+        .update({ status: "rejected", approved_by: adminName })
+        .eq("id", id);
+      if (error) throw error;
       await logAction("rejected", adminName, report);
       toast({ title: "Report rejected" });
       loadReports();
@@ -139,9 +146,11 @@ export default function AdminPanel() {
     }
     setBulkLoading(true);
     try {
-      await base44.entities.ScammerReport.bulkUpdate(
-        toApprove.map((id) => ({ id, status: "approved", approved_by: adminName, approved_by_id: user?.id || "" }))
-      );
+      const { error } = await supabase
+        .from("scammer_reports")
+        .update({ status: "approved", approved_by: adminName, approved_by_id: user?.id || null })
+        .in("id", toApprove);
+      if (error) throw error;
       await Promise.all(
         toApprove.map((id) => {
           const r = reports.find((x) => x.id === id);
@@ -169,7 +178,8 @@ export default function AdminPanel() {
           return logAction("deleted", adminName, r);
         })
       );
-      await base44.entities.ScammerReport.deleteMany({ id: { $in: ids } });
+      const { error: delError } = await supabase.from("scammer_reports").delete().in("id", ids);
+      if (delError) throw delError;
       toast({ title: `${ids.length} report(s) deleted` });
       clearSelection();
       loadReports();

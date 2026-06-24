@@ -1,13 +1,13 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { base44 } from "@/api/base44Client";
+import { supabase } from "@/lib/supabaseClient";
+import { uploadFile } from "@/lib/uploadFile";
 import { useAuth } from "@/lib/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, User as UserIcon, Key, Save, Camera, Mail } from "lucide-react";
-import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
+import { Loader2, User as UserIcon, Key, Save, Camera } from "lucide-react";
 import { toast } from "@/components/ui/use-toast";
 
 export default function Profile() {
@@ -15,13 +15,9 @@ export default function Profile() {
   const [loading, setLoading] = useState(false);
   const [uploadingPfp, setUploadingPfp] = useState(false);
   const [pwLoading, setPwLoading] = useState(false);
-  const [pwStep, setPwStep] = useState("form");
-  const [pwCode, setPwCode] = useState("");
-  const [sendingCode, setSendingCode] = useState(false);
 
   const [profile, setProfile] = useState({
     display_name: "",
-    username: "",
     pfp_url: "",
   });
 
@@ -35,7 +31,6 @@ export default function Profile() {
     if (user) {
       setProfile({
         display_name: user.display_name || "",
-        username: user.username || "",
         pfp_url: user.pfp_url || "",
       });
     }
@@ -44,9 +39,10 @@ export default function Profile() {
   const handlePfpUpload = async (file) => {
     setUploadingPfp(true);
     try {
-      const { file_url } = await base44.integrations.Core.UploadFile({ file });
-      setProfile((prev) => ({ ...prev, pfp_url: file_url }));
-      await base44.auth.updateMe({ pfp_url: file_url });
+      const url = await uploadFile(file);
+      setProfile((prev) => ({ ...prev, pfp_url: url }));
+      const { error } = await supabase.from("profiles").update({ pfp_url: url }).eq("id", user.id);
+      if (error) throw error;
       await checkUserAuth();
       toast({ title: "Profile picture updated!" });
     } catch (e) {
@@ -60,15 +56,17 @@ export default function Profile() {
     setLoading(true);
     try {
       const oldName = user.display_name || user.full_name || "";
-      await base44.auth.updateMe({
-        display_name: profile.display_name,
-        username: profile.username,
-      });
-      if (profile.display_name !== oldName && user?.id) {
-        await base44.entities.ScammerReport.updateMany(
-          { approved_by_id: user.id },
-          { $set: { approved_by: profile.display_name } }
-        );
+      const { error } = await supabase
+        .from("profiles")
+        .update({ display_name: profile.display_name })
+        .eq("id", user.id);
+      if (error) throw error;
+
+      if (profile.display_name !== oldName) {
+        await supabase
+          .from("scammer_reports")
+          .update({ approved_by: profile.display_name })
+          .eq("approved_by_id", user.id);
       }
       await checkUserAuth();
       toast({ title: "Profile updated!" });
@@ -79,7 +77,7 @@ export default function Profile() {
     }
   };
 
-  const handleSendCode = async () => {
+  const handleChangePassword = async () => {
     if (passwords.newPassword !== passwords.confirmPassword) {
       toast({ title: "Passwords don't match", variant: "destructive" });
       return;
@@ -92,90 +90,28 @@ export default function Profile() {
       toast({ title: "Enter your current password", variant: "destructive" });
       return;
     }
-    setSendingCode(true);
-    try {
-      const code = Math.floor(100000 + Math.random() * 900000).toString();
-      const expires = Date.now() + 10 * 60 * 1000;
-      await base44.auth.updateMe({ pw_reset_code: code, pw_reset_expires: String(expires) });
-      await base44.integrations.Core.SendEmail({
-        to: user.email,
-        subject: "Your GardenGuard verification code",
-        body: `<div style="font-family:Inter,sans-serif;max-width:420px;margin:auto;background:#0a0a0a;color:#e0e0e0;padding:32px;border-radius:16px;border:1px solid #1a1a1a">
-          <h2 style="color:#22ff88;margin:0 0 16px">GardenGuard</h2>
-          <p style="margin:0 0 8px;color:#888">You requested a password change.</p>
-          <p style="margin:0 0 20px;color:#888">Use this code to confirm the change:</p>
-          <div style="font-size:32px;font-weight:700;letter-spacing:8px;text-align:center;background:#111;padding:20px;border-radius:12px;color:#22ff88">${code}</div>
-          <p style="margin:20px 0 0;color:#555;font-size:13px">This code expires in 10 minutes. If you didn't request this, ignore this email.</p>
-        </div>`,
-      });
-      toast({ title: "Verification code sent!", description: `Check your email at ${user.email}` });
-      setPwStep("verify");
-    } catch (e) {
-      toast({ title: "Failed to send code", description: e.message, variant: "destructive" });
-    } finally {
-      setSendingCode(false);
-    }
-  };
-
-  const handleVerifyAndChange = async () => {
-    if (pwCode.length < 6) {
-      toast({ title: "Enter the 6-digit code", variant: "destructive" });
-      return;
-    }
     setPwLoading(true);
     try {
-      const fresh = await base44.auth.me();
-      const storedCode = fresh.pw_reset_code;
-      const expiresStr = fresh.pw_reset_expires;
-      if (!storedCode || storedCode !== pwCode) {
-        toast({ title: "Invalid code", description: "The code doesn't match", variant: "destructive" });
-        setPwLoading(false);
-        return;
-      }
-      if (expiresStr && Date.now() > Number(expiresStr)) {
-        toast({ title: "Code expired", description: "Request a new code", variant: "destructive" });
-        setPwLoading(false);
-        return;
-      }
-      await base44.auth.changePassword({
-        userId: user.id,
-        currentPassword: passwords.currentPassword,
-        newPassword: passwords.newPassword,
+      // Verify the current password by re-authenticating
+      const { error: verifyError } = await supabase.auth.signInWithPassword({
+        email: user.email,
+        password: passwords.currentPassword,
       });
-      await base44.auth.updateMe({ pw_reset_code: "", pw_reset_expires: "" });
+      if (verifyError) {
+        toast({ title: "Current password is incorrect", variant: "destructive" });
+        setPwLoading(false);
+        return;
+      }
+
+      const { error } = await supabase.auth.updateUser({ password: passwords.newPassword });
+      if (error) throw error;
+
       toast({ title: "Password changed successfully!" });
       setPasswords({ currentPassword: "", newPassword: "", confirmPassword: "" });
-      setPwCode("");
-      setPwStep("form");
     } catch (e) {
       toast({ title: "Failed to change password", description: e.message, variant: "destructive" });
     } finally {
       setPwLoading(false);
-    }
-  };
-
-  const handleResendCode = async () => {
-    setSendingCode(true);
-    try {
-      const code = Math.floor(100000 + Math.random() * 900000).toString();
-      const expires = Date.now() + 10 * 60 * 1000;
-      await base44.auth.updateMe({ pw_reset_code: code, pw_reset_expires: String(expires) });
-      await base44.integrations.Core.SendEmail({
-        to: user.email,
-        subject: "Your GardenGuard verification code",
-        body: `<div style="font-family:Inter,sans-serif;max-width:420px;margin:auto;background:#0a0a0a;color:#e0e0e0;padding:32px;border-radius:16px;border:1px solid #1a1a1a">
-          <h2 style="color:#22ff88;margin:0 0 16px">GardenGuard</h2>
-          <p style="margin:0 0 8px;color:#888">You requested a password change.</p>
-          <p style="margin:0 0 20px;color:#888">Use this code to confirm the change:</p>
-          <div style="font-size:32px;font-weight:700;letter-spacing:8px;text-align:center;background:#111;padding:20px;border-radius:12px;color:#22ff88">${code}</div>
-          <p style="margin:20px 0 0;color:#555;font-size:13px">This code expires in 10 minutes.</p>
-        </div>`,
-      });
-      toast({ title: "New code sent!" });
-    } catch (e) {
-      toast({ title: "Failed to resend", description: e.message, variant: "destructive" });
-    } finally {
-      setSendingCode(false);
     }
   };
 
@@ -256,16 +192,6 @@ export default function Profile() {
                   className="bg-background/50"
                 />
               </div>
-              <div className="space-y-2">
-                <Label>Username</Label>
-                <Input
-                  placeholder="your_username"
-                  value={profile.username}
-                  onChange={(e) => setProfile({ ...profile, username: e.target.value })}
-                  className="bg-background/50"
-                />
-                <p className="text-xs text-muted-foreground">This is your public handle</p>
-              </div>
               <Button
                 onClick={handleSaveProfile}
                 disabled={loading}
@@ -283,112 +209,49 @@ export default function Profile() {
               animate={{ opacity: 1 }}
               className="rounded-2xl border border-border/50 bg-card/30 backdrop-blur-sm p-4 sm:p-6 space-y-4 sm:space-y-5"
             >
-              {pwStep === "form" ? (
-                <>
-                  <div className="space-y-2">
-                    <Label>Current Password</Label>
-                    <Input
-                      type="password"
-                      placeholder="••••••••"
-                      value={passwords.currentPassword}
-                      onChange={(e) => setPasswords({ ...passwords, currentPassword: e.target.value })}
-                      className="bg-background/50"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>New Password</Label>
-                    <Input
-                      type="password"
-                      placeholder="••••••••"
-                      value={passwords.newPassword}
-                      onChange={(e) => setPasswords({ ...passwords, newPassword: e.target.value })}
-                      className="bg-background/50"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Confirm New Password</Label>
-                    <Input
-                      type="password"
-                      placeholder="••••••••"
-                      value={passwords.confirmPassword}
-                      onChange={(e) => setPasswords({ ...passwords, confirmPassword: e.target.value })}
-                      className="bg-background/50"
-                    />
-                  </div>
-                  <Button
-                    onClick={handleSendCode}
-                    disabled={
-                      sendingCode ||
-                      !passwords.currentPassword ||
-                      !passwords.newPassword ||
-                      !passwords.confirmPassword
-                    }
-                    className="gap-2 bg-primary text-primary-foreground hover:bg-primary/90"
-                  >
-                    {sendingCode ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <Mail className="w-4 h-4" />
-                    )}
-                    Send Verification Code
-                  </Button>
-                </>
-              ) : (
-                <div className="text-center py-2">
-                  <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4 glow-primary">
-                    <Mail className="w-7 h-7 text-primary" />
-                  </div>
-                  <h3 className="font-display text-lg font-semibold mb-1">Check your email</h3>
-                  <p className="text-sm text-muted-foreground mb-6">
-                    We sent a 6-digit code to {user?.email}
-                  </p>
-                  <div className="flex justify-center mb-6">
-                    <InputOTP
-                      maxLength={6}
-                      value={pwCode}
-                      onChange={setPwCode}
-                      autoFocus
-                      autoComplete="one-time-code"
-                    >
-                      <InputOTPGroup>
-                        <InputOTPSlot index={0} />
-                        <InputOTPSlot index={1} />
-                        <InputOTPSlot index={2} />
-                        <InputOTPSlot index={3} />
-                        <InputOTPSlot index={4} />
-                        <InputOTPSlot index={5} />
-                      </InputOTPGroup>
-                    </InputOTP>
-                  </div>
-                  <Button
-                    onClick={handleVerifyAndChange}
-                    disabled={pwLoading || pwCode.length < 6}
-                    className="gap-2 bg-primary text-primary-foreground hover:bg-primary/90 w-full"
-                  >
-                    {pwLoading ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <Key className="w-4 h-4" />
-                    )}
-                    Verify & Change Password
-                  </Button>
-                  <div className="flex justify-between mt-4 text-sm">
-                    <button
-                      onClick={() => setPwStep("form")}
-                      className="text-muted-foreground hover:text-foreground"
-                    >
-                      ← Back
-                    </button>
-                    <button
-                      onClick={handleResendCode}
-                      disabled={sendingCode}
-                      className="text-primary hover:underline"
-                    >
-                      {sendingCode ? "Sending..." : "Resend code"}
-                    </button>
-                  </div>
-                </div>
-              )}
+              <div className="space-y-2">
+                <Label>Current Password</Label>
+                <Input
+                  type="password"
+                  placeholder="••••••••"
+                  value={passwords.currentPassword}
+                  onChange={(e) => setPasswords({ ...passwords, currentPassword: e.target.value })}
+                  className="bg-background/50"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>New Password</Label>
+                <Input
+                  type="password"
+                  placeholder="••••••••"
+                  value={passwords.newPassword}
+                  onChange={(e) => setPasswords({ ...passwords, newPassword: e.target.value })}
+                  className="bg-background/50"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Confirm New Password</Label>
+                <Input
+                  type="password"
+                  placeholder="••••••••"
+                  value={passwords.confirmPassword}
+                  onChange={(e) => setPasswords({ ...passwords, confirmPassword: e.target.value })}
+                  className="bg-background/50"
+                />
+              </div>
+              <Button
+                onClick={handleChangePassword}
+                disabled={
+                  pwLoading ||
+                  !passwords.currentPassword ||
+                  !passwords.newPassword ||
+                  !passwords.confirmPassword
+                }
+                className="gap-2 bg-primary text-primary-foreground hover:bg-primary/90"
+              >
+                {pwLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Key className="w-4 h-4" />}
+                Change Password
+              </Button>
             </motion.div>
           </TabsContent>
         </Tabs>

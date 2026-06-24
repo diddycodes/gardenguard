@@ -1,7 +1,6 @@
 import { useEffect, useState, useRef } from "react";
 import { Link } from "react-router-dom";
-import { motion } from "framer-motion";
-import { base44 } from "@/api/base44Client";
+import { supabase } from "@/lib/supabaseClient";
 import { useAuth } from "@/lib/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -20,7 +19,12 @@ export default function ReportComments({ reportId }) {
   useEffect(() => {
     (async () => {
       try {
-        const data = await base44.entities.ReportComment.filter({ report_id: reportId }, "created_date", 200);
+        const { data, error } = await supabase
+          .from("report_comments")
+          .select("*")
+          .eq("report_id", reportId)
+          .order("created_at", { ascending: true });
+        if (error) throw error;
         setComments(data);
       } catch (e) {
         console.error(e);
@@ -29,13 +33,14 @@ export default function ReportComments({ reportId }) {
       }
     })();
 
-    const unsubscribe = base44.entities.ReportComment.subscribe((event) => {
-      if (event.type === "create" && event.data?.report_id === reportId) {
-        setComments((prev) => [...prev, event.data]);
-      }
-    });
+    const channel = supabase
+      .channel(`comments-${reportId}`)
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "report_comments", filter: `report_id=eq.${reportId}` }, (payload) => {
+        setComments((prev) => [...prev, payload.new]);
+      })
+      .subscribe();
 
-    return () => unsubscribe();
+    return () => supabase.removeChannel(channel);
   }, [reportId]);
 
   const handleSend = async (e) => {
@@ -46,12 +51,14 @@ export default function ReportComments({ reportId }) {
     setSending(true);
     setInput("");
     try {
-      await base44.entities.ReportComment.create({
+      const { error } = await supabase.from("report_comments").insert({
         report_id: reportId,
         content,
         author_name: user?.display_name || user?.full_name || user?.email?.split("@")[0] || "Anonymous",
         author_avatar: user?.pfp_url || "",
+        created_by_id: user?.id,
       });
+      if (error) throw error;
     } catch (e) {
       console.error(e);
       setInput(content);

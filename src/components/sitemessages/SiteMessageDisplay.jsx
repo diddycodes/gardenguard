@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { base44 } from "@/api/base44Client";
+import { supabase } from "@/lib/supabaseClient";
 import { X, Megaphone } from "lucide-react";
 import FunnyAnimation from "./FunnyAnimation";
 
@@ -14,19 +14,29 @@ export default function SiteMessageDisplay() {
   useEffect(() => {
     const load = async () => {
       try {
-        const data = await base44.entities.SiteMessage.list("-created_date", 20);
+        const { data, error } = await supabase
+          .from("site_messages")
+          .select("*")
+          .order("created_at", { ascending: false })
+          .limit(20);
+        if (error) throw error;
         const active = data.filter((m) => m.active);
         setMessages(active);
 
         const seen = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
         setPlayedAnims(new Set(seen));
       } catch (e) {
-        /* entity may not exist yet */
+        /* table may be empty */
       }
     };
     load();
-    const interval = setInterval(load, 15000);
-    return () => clearInterval(interval);
+
+    const channel = supabase
+      .channel("site-messages")
+      .on("postgres_changes", { event: "*", schema: "public", table: "site_messages" }, load)
+      .subscribe();
+
+    return () => supabase.removeChannel(channel);
   }, []);
 
   const markSeen = (msgId) => {

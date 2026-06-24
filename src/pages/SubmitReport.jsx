@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
-import { base44 } from "@/api/base44Client";
+import { supabase } from "@/lib/supabaseClient";
+import { uploadFile } from "@/lib/uploadFile";
 import { useAuth } from "@/lib/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -32,8 +33,8 @@ export default function SubmitReport() {
     setError("");
     try {
       for (const file of files) {
-        const { file_url } = await base44.integrations.Core.UploadFile({ file });
-        setEvidence((prev) => [...prev, file_url]);
+        const url = await uploadFile(file);
+        setEvidence((prev) => [...prev, url]);
       }
     } catch (e) {
       setError("Failed to upload file(s)");
@@ -51,13 +52,15 @@ export default function SubmitReport() {
     }
     setLoading(true);
     try {
-      await base44.entities.ScammerReport.create({
+      const { error } = await supabase.from("scammer_reports").insert({
         ...form,
         evidence_files: evidence,
         status: "pending",
         reported_by_name:
           user?.display_name || user?.full_name || user?.email?.split("@")[0] || "Anonymous",
+        created_by_id: user?.id,
       });
+      if (error) throw error;
       setSuccess(true);
       setTimeout(() => navigate("/reports"), 2000);
     } catch (e) {

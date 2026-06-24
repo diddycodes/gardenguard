@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { base44 } from "@/api/base44Client";
+import { supabase } from "@/lib/supabaseClient";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, History, Check, X, Trash2 } from "lucide-react";
@@ -30,7 +30,12 @@ export default function ActivityLog() {
   useEffect(() => {
     (async () => {
       try {
-        const data = await base44.entities.AdminActivityLog.list("-created_date", 100);
+        const { data, error } = await supabase
+          .from("admin_activity_log")
+          .select("*")
+          .order("created_at", { ascending: false })
+          .limit(100);
+        if (error) throw error;
         setLogs(data);
       } catch (e) {
         console.error(e);
@@ -79,7 +84,7 @@ export default function ActivityLog() {
                     </p>
                   </div>
                   <span className="text-xs text-muted-foreground flex-shrink-0">
-                    {timeAgo(log.created_date)}
+                    {timeAgo(log.created_at)}
                   </span>
                 </Card>
               </motion.div>

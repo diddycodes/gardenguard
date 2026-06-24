@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Shield, Menu, X, User as UserIcon, LogOut, Plus, Home, ScrollText, ShieldCheck, MessageCircle } from "lucide-react";
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { base44 } from "@/api/base44Client";
+import { supabase } from "@/lib/supabaseClient";
 
 export default function Navbar() {
   const { user, isAuthenticated, logout } = useAuth();
@@ -15,12 +15,11 @@ export default function Navbar() {
 
   useEffect(() => {
     (async () => {
-      try {
-        const data = await base44.entities.ScammerReport.filter({ status: "approved" }, "-created_date", 500);
-        setReportCount(data.length);
-      } catch {
-        setReportCount(0);
-      }
+      const { count } = await supabase
+        .from("scammer_reports")
+        .select("*", { count: "exact", head: true })
+        .eq("status", "approved");
+      setReportCount(count ?? 0);
     })();
   }, []);
 
@@ -29,6 +28,7 @@ export default function Navbar() {
     { to: "/reports", label: "Watchlist", icon: ScrollText },
     { to: "/chat", label: "Chat", icon: MessageCircle },
   ];
+
   if (isAuthenticated) {
     navLinks.push({ to: "/submit", label: "Report", icon: Plus });
   }

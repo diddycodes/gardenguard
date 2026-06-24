@@ -1,7 +1,8 @@
 import { useEffect, useState, useRef } from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import { base44 } from "@/api/base44Client";
+import { supabase } from "@/lib/supabaseClient";
+import { uploadFile } from "@/lib/uploadFile";
 import { useAuth } from "@/lib/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,7 +24,12 @@ export default function Chat() {
   useEffect(() => {
     (async () => {
       try {
-        const data = await base44.entities.ChatMessage.list("-created_date", 50);
+        const { data, error } = await supabase
+          .from("chat_messages")
+          .select("*")
+          .order("created_at", { ascending: false })
+          .limit(50);
+        if (error) throw error;
         setMessages(data.reverse());
       } catch (e) {
         console.error(e);
@@ -32,15 +38,17 @@ export default function Chat() {
       }
     })();
 
-    const unsubscribe = base44.entities.ChatMessage.subscribe((event) => {
-      if (event.type === "create") {
-        setMessages((prev) => [...prev, event.data]);
-      } else if (event.type === "delete") {
-        setMessages((prev) => prev.filter((m) => m.id !== event.data.id));
-      }
-    });
+    const channel = supabase
+      .channel("chat-messages")
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "chat_messages" }, (payload) => {
+        setMessages((prev) => [...prev, payload.new]);
+      })
+      .on("postgres_changes", { event: "DELETE", schema: "public", table: "chat_messages" }, (payload) => {
+        setMessages((prev) => prev.filter((m) => m.id !== payload.old.id));
+      })
+      .subscribe();
 
-    return () => unsubscribe();
+    return () => supabase.removeChannel(channel);
   }, []);
 
   useEffect(() => {
@@ -57,13 +65,15 @@ export default function Chat() {
     setSending(true);
     setInput("");
     try {
-      await base44.entities.ChatMessage.create({
+      const { error } = await supabase.from("chat_messages").insert({
         content: content || "",
         sender_name: user?.display_name || user?.full_name || user?.email?.split("@")[0] || "Anonymous",
         sender_avatar: user?.pfp_url || "",
         sender_role: isAdmin ? "admin" : "user",
         attachment_url: attachment || "",
+        created_by_id: user?.id,
       });
+      if (error) throw error;
       setAttachment(null);
     } catch (e) {
       console.error(e);
@@ -76,8 +86,8 @@ export default function Chat() {
   const handleAttachmentUpload = async (file) => {
     setUploadingAttachment(true);
     try {
-      const { file_url } = await base44.integrations.Core.UploadFile({ file });
-      setAttachment(file_url);
+      const url = await uploadFile(file);
+      setAttachment(url);
     } catch (e) {
       console.error(e);
     } finally {
@@ -87,7 +97,8 @@ export default function Chat() {
 
   const handleDelete = async (msg) => {
     try {
-      await base44.entities.ChatMessage.delete(msg.id);
+      const { error } = await supabase.from("chat_messages").delete().eq("id", msg.id);
+      if (error) throw error;
       setMessages((prev) => prev.filter((m) => m.id !== msg.id));
     } catch (e) {
       console.error(e);

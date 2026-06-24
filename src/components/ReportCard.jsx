@@ -49,7 +49,7 @@ export default function ReportCard({ report, index = 0 }) {
               <div className="flex items-center justify-between mt-1.5 sm:mt-2 pt-1.5 sm:pt-2 border-t border-border/20">
                 <span className="text-[9px] sm:text-[10px] text-muted-foreground/60 truncate">{report.scam_type}</span>
                 <span className="text-[9px] sm:text-[10px] text-muted-foreground/50 shrink-0 ml-1">
-                  <RelativeTime date={report.created_date} />
+                  <RelativeTime date={report.created_at} />
                 </span>
               </div>
             </div>

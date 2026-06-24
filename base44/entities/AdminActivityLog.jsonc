@@ -1,0 +1,53 @@
+{
+  "name": "AdminActivityLog",
+  "type": "object",
+  "properties": {
+    "action": {
+      "type": "string",
+      "title": "Action",
+      "enum": [
+        "approved",
+        "rejected",
+        "deleted"
+      ]
+    },
+    "admin_name": {
+      "type": "string",
+      "title": "Admin Name"
+    },
+    "report_username": {
+      "type": "string",
+      "title": "Report Scammer Username"
+    },
+    "report_id": {
+      "type": "string",
+      "title": "Report ID"
+    }
+  },
+  "required": [
+    "action",
+    "admin_name"
+  ],
+  "rls": {
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "read": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

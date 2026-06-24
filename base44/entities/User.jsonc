@@ -1,0 +1,26 @@
+{
+  "name": "User",
+  "type": "object",
+  "properties": {
+    "username": {
+      "type": "string",
+      "title": "Username"
+    },
+    "display_name": {
+      "type": "string",
+      "title": "Display Name"
+    },
+    "pfp_url": {
+      "type": "string",
+      "title": "Profile Picture URL"
+    },
+    "pw_reset_code": {
+      "type": "string",
+      "title": "Password Reset Code"
+    },
+    "pw_reset_expires": {
+      "type": "string",
+      "title": "Password Reset Code Expiry"
+    }
+  }
+}

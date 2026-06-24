@@ -1,0 +1,128 @@
+{
+  "name": "ScammerReport",
+  "type": "object",
+  "properties": {
+    "scammer_username": {
+      "type": "string",
+      "title": "Scammer Username"
+    },
+    "platform": {
+      "type": "string",
+      "title": "Platform",
+      "enum": [
+        "Discord",
+        "Roblox",
+        "In-Game",
+        "Reddit",
+        "Twitter",
+        "Other"
+      ]
+    },
+    "scam_type": {
+      "type": "string",
+      "title": "Scam Type",
+      "enum": [
+        "Item Theft",
+        "Currency Scam",
+        "Impersonation",
+        "Account Hacking",
+        "False Trade",
+        "Other"
+      ]
+    },
+    "description": {
+      "type": "string",
+      "title": "Description"
+    },
+    "evidence_files": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "title": "Evidence Files"
+    },
+    "status": {
+      "type": "string",
+      "title": "Status",
+      "enum": [
+        "pending",
+        "approved",
+        "rejected"
+      ],
+      "default": "pending"
+    },
+    "approved_by": {
+      "type": "string",
+      "title": "Approved By"
+    },
+    "approved_by_id": {
+      "type": "string",
+      "title": "Approved By User ID"
+    },
+    "severity": {
+      "type": "string",
+      "title": "Severity",
+      "enum": [
+        "low",
+        "medium",
+        "high",
+        "critical"
+      ],
+      "default": "medium"
+    },
+    "reported_by_name": {
+      "type": "string",
+      "title": "Reporter Name"
+    }
+  },
+  "required": [
+    "scammer_username",
+    "description",
+    "scam_type",
+    "platform"
+  ],
+  "rls": {
+    "create": {
+      "created_by_id": "{{user.id}}"
+    },
+    "read": {
+      "$or": [
+        {
+          "data.status": "approved"
+        },
+        {
+          "created_by_id": "{{user.id}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "update": {
+      "$or": [
+        {
+          "created_by_id": "{{user.id}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "$or": [
+        {
+          "created_by_id": "{{user.id}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    }
+  }
+}

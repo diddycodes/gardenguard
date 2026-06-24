@@ -1,0 +1,55 @@
+{
+  "name": "SiteMessage",
+  "type": "object",
+  "properties": {
+    "content": {
+      "type": "string",
+      "title": "Message Content"
+    },
+    "animation_type": {
+      "type": "string",
+      "title": "Animation Type",
+      "enum": [
+        "confetti",
+        "floating_emojis",
+        "screen_shake",
+        "rainbow_flash",
+        "none"
+      ],
+      "default": "confetti"
+    },
+    "active": {
+      "type": "boolean",
+      "title": "Active",
+      "default": true
+    },
+    "created_by_name": {
+      "type": "string",
+      "title": "Created By"
+    }
+  },
+  "required": [
+    "content",
+    "animation_type"
+  ],
+  "rls": {
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "read": {
+      "data.active": true
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

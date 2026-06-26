@@ -166,7 +166,7 @@ export default function Chat() {
                   <label className="cursor-pointer flex-shrink-0">
                     <input
                       type="file"
-                      accept="image/*"
+                      accept="image/*,video/mp4,video/webm"
                       className="hidden"
                       onChange={(e) => e.target.files[0] && handleAttachmentUpload(e.target.files[0])}
                     />

@@ -52,11 +52,19 @@ export default function ChatMessage({ message, isOwn, isAdmin, onDelete }) {
           )}
         </div>
         {hasAttachment && (
-          <img
-            src={message.attachment_url}
-            alt="attachment"
-            className="rounded-2xl max-w-[240px] max-h-[300px] object-cover border border-border/50 mb-1"
-          />
+          /\.(mp4|webm)$/i.test(message.attachment_url) ? (
+            <video
+              src={message.attachment_url}
+              controls
+              className="rounded-2xl max-w-[240px] max-h-[300px] border border-border/50 mb-1"
+            />
+          ) : (
+            <img
+              src={message.attachment_url}
+              alt="attachment"
+              className="rounded-2xl max-w-[240px] max-h-[300px] object-cover border border-border/50 mb-1"
+            />
+          )
         )}
         {message.content && (
           <div
